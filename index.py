@@ -14,20 +14,20 @@ port = int(os.getenv("PORT", 3000))
 def root():
 
     if(port == 3000):
-        return 'hello world! i am in the local'
+        return 'example-py-docker-iothub-postgresql'
     elif(port == int(os.getenv("PORT"))):
         return render_template('index.html')
 
 
 IOTHUB_SERVICE_NAME = 'p-rabbitmq'
-DB_SERVICE_NAME = 'postgresql-innoworks'
+DB_SERVICE_NAME = 'postgresql'
 
 # Get the environment variables
-vcap_services = os.getenv('VCAP_SERVICES')
-vcap_services_js = json.loads(vcap_services)
+ENSAAS_SERVICES = os.getenv('ENSAAS_SERVICES')
+ENSAAS_SERVICES_js = json.loads(ENSAAS_SERVICES)
 
 # --- MQTT(rabbitmq) ---
-credentials = vcap_services_js[IOTHUB_SERVICE_NAME][0]['credentials']
+credentials = ENSAAS_SERVICES_js[IOTHUB_SERVICE_NAME][0]['credentials']
 mqtt_credential = credentials['protocols']['mqtt']
 
 broker = mqtt_credential['host']
@@ -36,7 +36,7 @@ password = mqtt_credential['password'].strip()
 mqtt_port = mqtt_credential['port']
 
 # # --- Postgresql ---
-credentials = vcap_services_js[DB_SERVICE_NAME][0]['credentials']
+credentials = ENSAAS_SERVICES_js[DB_SERVICE_NAME][0]['credentials']
 database_database = credentials['database']
 database_username = credentials['username'].strip()
 database_password = credentials['password'].strip()
@@ -51,8 +51,8 @@ POSTGRES = {
     'port': database_port,
 }
 
-schema = 'livingroom3'
-table = 'temperature3'
+schema = 'livingroom'
+table = 'temperature'
 group = 'groupfamily'
 # connect to server
 engine = sqlalchemy.create_engine('postgresql://%(user)s:\
@@ -128,10 +128,3 @@ def insert_data():
 if __name__ == '__main__':
     # Run the app, listening on all IPs with our chosen port number
     app.run(host='0.0.0.0', port=port)
-
-
-
-# cf push --docker-image tsian077/hello --no-start
-# cf bs pythonpostgresql postgresql -c '{\"group\":\"groupfamily\"}'
-
-# cf start pythonpostgresql

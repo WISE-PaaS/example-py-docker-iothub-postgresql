@@ -1,81 +1,59 @@
-# Example-python-Docker-Iothub-Postgresql
+- [1. Introduction](#1-introduction)
+- [2. Before You Start](#2-before-you-start)
+- [3. Downloading the Project](#3-downloading-the-project)
+- [4. Deploy the app to WISE-PaaS](#4-deploy-the-app-to-wise-paas)
+- [5. Application Introduce](#5-application-introduce)
+  - [5-1. index.py](#5-1-indexpy)
+  - [5-2. publisher.py](#5-2-publisherpy)
+- [6. Kubernetes Config](#6-kubernetes-config)
+  - [6-1. deployment.yaml](#6-1-deploymentyaml)
+  - [6-2. ingress.yaml](#6-2-ingressyaml)
+  - [6-3. service.yaml](#6-3-serviceyaml)
+- [7. Docker](#7-docker)
+  - [7-1. dockerfile](#7-1-dockerfile)
+- [8. Deployment Application Steps](#8-deployment-application-steps)
+  - [8-1. build Docker image](#8-1-build-docker-image)
+  - [8-2. push it to Docker Hub](#8-2-push-it-to-docker-hub)
+  - [8-3. create kubernetes object ( All object are in the k8s folder)](#8-3-create-kubernetes-object--all-object-are-in-the-k8s-folder)
+  - [8-4. Check（Pod status is running for success）](#8-4-checkpod-status-is-running-for-success)
+  - [8-5. Send message to wise-paas by MQTT](#8-5-send-message-to-wise-paas-by-mqtt)
+  - [8-6. Check that postgresql has received data](#8-6-check-that-postgresql-has-received-data)
 
-This is WIES-PaaS Iothub example-code include the sso and rabbitmq service，and we use the Docker package this file。
+## 1. Introduction
 
-[IotHub](https://advantech.wistia.com/medias/up3q2vxvn3)
+This sample code shows how to deploy an application to the EnSaaS 4.0 environment and connect to the the database (Postgresql) and message broker (RabbitMQ) services provided by the platform.
 
-[SSO](https://advantech.wistia.com/medias/vay5uug5q6)
+## 2. Before You Start
 
-## Quick Start
+1. Create a [Docker](https://www.docker.com/get-started) Account
+2. Development Environment
+   - Install [Docker](https://docs.docker.com/install/)
+   - Install [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+   - Install [Postgresql](https://www.postgresql.org/)
 
-#### Environment prepare
-
-#### python3(need include pip3)
-
-[python3](https://www.python.org/downloads/)
-
-#### cf-cli
-
-[cf-cli](https://docs.cloudfoundry.org/cf-cli/install-go-cli.html)
-
-Use to push application to WISE-PaaS，if you want to know more you can see this video
-
-#### docker
-
-[docker](https://www.docker.com/)
-
-Use to packaged our application
-
-#### Postgrsql
-
-You can download pgAdmin so you can see the result in WISE-PaaS Postgresql servince instance
-
-[Postgresql](https://www.postgresql.org/)
-
-python3 package(those library can run this application in local):
-
-    #mqtt
-    pip3 install paho-mqtt
-    #python-backend
-    pip3 install Flask
-
-    #postgresql library
-    pip3 install sqlalchemy
-    pip3 install psycopg2
-
-#### Download this file
+## 3. Downloading the Project
 
     git clone https://github.com/WISE-PaaS/example-py-docker-iothub-postgresql.git
 
-#### Login to WISE-PaaS
+## 4. Deploy the app to WISE-PaaS
 
-![Imgur](https://i.imgur.com/JNJmxFy.png)
+WISE-PaaS has 2 types of data centers
 
-    #cf login -skip-ssl-validation -a {api.domain_name}  -u "account" -p "password"
+**SA DataCenter**：[https://portal-mp-ensaas.sa.wise-paas.com/](https://portal-mp-ensaas.sa.wise-paas.com/)
 
-    cf login –skip-ssl-validation -a api.wise-paas.io -u xxxxx@advtech.com.tw -p xxxxxx
+- **Cluster**：eks004
+  - **Workspace**：adv-training
+    - **Namespace**：level2
 
-    #check the cf status
-    cf target
+**HZ DataCenter**：[https://portal-mp-ensaas.hz.wise-paas.com.cn/](https://portal-mp-ensaas.hz.wise-paas.com.cn/)
 
-## Application Introduce
+- **Cluster**：eks006
+  - **Workspace**：advtraining
+    - **Namespace**：level2
 
-#### Dockerfile
+## 5. Application Introduce
 
-We first download the python:3.6 and copy this application to `/app`，and install library define in `requirements.txt`
-
-```
-FROM python:3.6-slim
-WORKDIR /app
-ADD . /app
-RUN pip3 install -r requirements.txt
-
-#Use in local
-# EXPOSE 3000
-# CMD ["python", "hello.py"]
-```
-
-#### index.py
+### 5-1. index.py
 
 Simply backend appliaction。
 
@@ -90,29 +68,25 @@ port = int(os.getenv("PORT", 3000))
 def root():
 
     if(port == 3000):
-        return 'hello world! i am in the local'
+        return 'py-docker-iothub-postgresql successful'
     elif(port == int(os.getenv("PORT"))):
         return render_template('index.html')
 ```
 
-This is the postgresql connect config code，`vcap_services` can get the application environment in WISE-PaaS，you need to attention，and the service_name it need to be same name in WISE-PaaS postgresql service name。
-
-
-![Imgur](https://i.imgur.com/6777rmg.png)
-
+This is the postgresql connect config code，`ENSAAS_SERVICES` can get the application environment in WISE-PaaS。
 
 ```py
 
 #need to be same name in WISE-PaaS service name
 IOTHUB_SERVICE_NAME = 'p-rabbitmq'
-DB_SERVICE_NAME = 'postgresql-innoworks'
+DB_SERVICE_NAME = 'postgresql'
 
 # Get the environment variables
-vcap_services = os.getenv('VCAP_SERVICES')
-vcap_services_js = json.loads(vcap_services)
+ENSAAS_SERVICES = os.getenv('ENSAAS_SERVICES')
+ENSAAS_SERVICES_js = json.loads(ENSAAS_SERVICES)
 
 # --- MQTT(rabbitmq) ---
-credentials = vcap_services_js[IOTHUB_SERVICE_NAME][0]['credentials']
+credentials = ENSAAS_SERVICES_js[IOTHUB_SERVICE_NAME][0]['credentials']
 mqtt_credential = credentials['protocols']['mqtt']
 
 broker = mqtt_credential['host']
@@ -120,8 +94,8 @@ username = mqtt_credential['username'].strip()
 password = mqtt_credential['password'].strip()
 mqtt_port = mqtt_credential['port']
 
-# --- Postgresql ---
-credentials = vcap_services_js[DB_SERVICE_NAME][0]['credentials']
+# # --- Postgresql ---
+credentials = ENSAAS_SERVICES_js[DB_SERVICE_NAME][0]['credentials']
 database_database = credentials['database']
 database_username = credentials['username'].strip()
 database_password = credentials['password'].strip()
@@ -137,20 +111,43 @@ POSTGRES = {
 }
 ```
 
+Retrieve the secret, which iothub the secret contains
+
+    # List all secrets in the namespace
+    $ kubectl get secret --namespace=level2
+    # Output the secret content
+    $ kubectl get secret {secret_name} --namespace=level2 -o yaml
+
+![-oyaml](https://tva1.sinaimg.cn/large/007S8ZIlgy1giz6sk4hb3j30ta0c3n5j.jpg)
+
+Copy the decoded content and paste it into the editor, such as Visual Studio Code, and let the plugin prettify it. You can now inspect the structure and start to construct your code.
+
+    # Decoding the secret
+    $ kubectl get secret {secret_name} --namespace=level2 -o jsonpath="{.data.ENSAAS_SERVICES}" | base64 --decode; echo
+
+![-ojsonpath](https://tva1.sinaimg.cn/large/007S8ZIlgy1giz88jndhjj30up04gtd9.jpg)
+
+Copy the decoded content to vscode and Save as **json** format
+**Notice**：the `DB_SERVICE_NAME` and `IOTHUB_SERVICE_NAME` need to be same name in secret instance name。**PS（ Not the instance name in portal-service ）**
+
+![copyDataVS](https://tva1.sinaimg.cn/large/007S8ZIlgy1giz80nrjndj317k0rk10h.jpg)
+
+![copyDataVS](https://tva1.sinaimg.cn/large/007S8ZIlgy1giz873372qj317l0hsjwm.jpg)
+
 Create schema and table，when we bind the postgresql we need to tell the group for it。
 
 ```py
 #schema table
 schema = 'livingroom'
 table = 'temperature'
-#when we bind group need to tell postgresql service 
+#when we bind group need to tell postgresql service
 group = 'groupfamily'
 # connect to server
 engine = sqlalchemy.create_engine('postgresql://%(user)s:\
 %(password)s@%(host)s:%(port)s/%(db)s' % POSTGRES, echo=True)
 
 
-engine.execute("CREATE SCHEMA IF NOT EXISTS "+schema+" ;")  
+engine.execute("CREATE SCHEMA IF NOT EXISTS "+schema+" ;")
 # create schema
 
 engine.execute("ALTER SCHEMA "+schema+" OWNER TO "+group+" ;")
@@ -166,11 +163,6 @@ engine.execute("GRANT ALL ON ALL TABLES IN SCHEMA "+schema+" TO "+group+";")
 engine.execute("GRANT ALL ON ALL SEQUENCES IN SCHEMA "+schema+" TO "+group+";")
 
 ```
-
-
-**Notice:You can add service instance by yourself**
-
-![Imgur](https://i.imgur.com/ajqSsn1.png)
 
 This code can connect to IohHub，if it connect successful `on_connect` will print successful result and subscribe topic `/hello`，you can define topic by yourself，and when we receive message `on_message` will save data to postgresql。
 
@@ -201,103 +193,119 @@ client.connect(broker, mqtt_port, 60)
 client.loop_start()
 ```
 
-#### mainfest config
+### 5-2. publisher.py
 
-Open **manifest.yml** and editor the **application name**，because the appication can't duplicate in same domain name。
+This file can help us publish message to topic。
 
-Check the service instance name same as WISE-PaaS
+Edit the **publisher.py** `broker、port、username、password` you can find in **ENSAAS_SERVICES**
 
-![Imgur](https://i.imgur.com/4eynKmE.png)
+- bokrer："ENSAAS_SERVICES => p-rabbitmq => externalHosts"
+- port :"ENSAAS_SERVICES => p-rabbitmq => mqtt => port"
+- username :"ENSAAS_SERVICES => p-rabbitmq => mqtt => username"
+- password: "ENSAAS_SERVICES => p-rabbitmq => mqtt => password"
 
-![Imgur](https://i.imgur.com/VVMcYO8.png)
+![publisher](https://tva1.sinaimg.cn/large/007S8ZIlgy1gish55bh5nj318v0u0qg3.jpg)
 
-## SSO(Single Sign On)
+## 6. Kubernetes Config
 
-This is the [sso](https://advantech.wistia.com/medias/vay5uug5q6) applicaition，open **`templates/index.html`** and editor the `ssoUrl` to your application name，
+### 6-1. deployment.yaml
 
-If you don't want it，you can ignore it。
-  
- #change this **`python-demo-try`** to your **application name**
-var ssoUrl = myUrl.replace('python-demo-try', 'portal-sso');
+Each user needs to adjust the variables for certification, as follows：
 
-## Build Dokcer image
+1. metadata >> name：py-docker-iothub-**{user_name}**
+2. student：**{user_name}**
+3. image：**{docker_account}** / py-docker-iothub：latest
+4. containerPort：listen 3000
+5. env >> valueFrom >> secretRef >> name：need same name in Portal-service **secret name**
 
-Build image
+![deployment](https://tva1.sinaimg.cn/large/007S8ZIlgy1giye75cn27j30my0rqjx7.jpg)
 
-    docker build -t {image} .
-    docker build -t example-python-docker .
+**Notice：In Portal-Services secret name**
+![createSecret](https://tva1.sinaimg.cn/large/007S8ZIlly1gishp9o8q5j30qo09ignf.jpg)
 
-## Tag image to a docker hub  
+### 6-2. ingress.yaml
 
-First we need to create a repository on Docker Hub and copy it name 
+Each user needs to adjust the variables for certification, as follows：
 
-[Docker Hub](https://hub.docker.com/)
+1. metadata >> name：py-docker-iothub-**{user_name}**
+2. host：py-docker-iothub-**{user_name}** . **{namespace_name}** . **{cluster_name}**.en.internal
+3. serviceName：need to be same name in Service.yaml **{metadata name}**
+4. servicePort：same **port** in Service.yaml
+   ![ingress](https://tva1.sinaimg.cn/large/007S8ZIlgy1giyec4c8e3j30mv0d2417.jpg)
 
-![Imgur](https://i.imgur.com/SxiLcOH.png)
+### 6-3. service.yaml
 
-    #docker login to the docker hub
-    docker login
+Each user needs to adjust the variables for certification, as follows：
 
-    #docker tag {image name} {your account/dockerhub-resp name}
-    docker tag example-py-docker WISE-PaaS/example-py-docker
+1. metadata >> name：server-**{user_name}**
+2. student：**{user_name}**
+3. port：same **{port}** in ingress.yaml
+4. targetPort：same **{port}** in deployment.yaml **{containerPort}**
+   ![service](https://tva1.sinaimg.cn/large/007S8ZIlgy1giyeeppcs0j30n00aomz1.jpg)
 
-Push it to Docker Hub
-  
-    #docker push {your account/dockerhub-resp name}
-    docker push WISE-PaaS/example-py-docker
+## 7. Docker
 
-Push application and no start it because we need to bind the postgresql service first。
+### 7-1. dockerfile
 
-    #cf push --docker-image{WISE-PaaS/DOCKERHUB-RESP name}
-    cf push --docker-image WISE-PaaS/eample-py-docker --no-start
+We first download the python:3.6 and copy this application to `/app`，and install library define in `requirements.txt`
 
-Bind the postgresql application service，we already bind rabbitmq in `manifest.yml`，if you use the Linux or Mac，the bind group way is different，use `cf bs` can see it。
+```
+FROM python:3.6-slim
+WORKDIR /app
+ADD . /app
+RUN pip3 install -r requirements.txt
+EXPOSE 3000
+CMD ["python", "-u", "index.py"]
+```
 
-Notice:The `groupfamily` we define in `index.py` must be the same
+## 8. Deployment Application Steps
 
-    #cf bs {application name} {service instance name} -c {group}
-    cf bs pythonpostgresql postgresql -c '{\"group\":\"groupfamily\"}'
+### 8-1. build Docker image
 
-Get the application environment the save it to `env.json`
+Adjust to your docker account
 
-    #get the application environment
-    cf env python-demo-try > env.json
+    $ docker build -t {docker_account / py-docker-iothub-postgresql：latest} .
 
-#### publisher.py
+### 8-2. push it to Docker Hub
 
-This file can help us publishW message to topic。
+    $ docker push {docker_account / py-docker-iothub-postgresql：latest}
 
-Edit the **publisher.py** `broker、port、username、password` you can find in env.json
+### 8-3. create kubernetes object ( All object are in the k8s folder)
 
-- bokrer:"VCAP_SERVICES => p-rabbitmq => externalHosts"
-- port :"VCAP_SERVICES => p-rabbitmq => mqtt => port"
-- username :"VCAP_SERVICES => p-rabbitmq => mqtt => username"
-- password: "VCAP_SERVICES => p-rabbitmq => mqtt => password"
+    $ kubectl apply -f k8s/
 
-open two terminal
-  
- Listen the console
-  
-    #cf logs {application name}
-    cf logs python-demo-try
+![createSecret](https://tva1.sinaimg.cn/large/007S8ZIlgy1giyeh91d6sj31du050whd.jpg)
 
-send message to application in WISE-PaaS
+### 8-4. Check（Pod status is running for success）
 
+    # grep can quickly find key words
+    $ kubectl get all --namespace=level2 | grep postgresql-sk-chen
+
+![createSecret](https://tva1.sinaimg.cn/large/007S8ZIlgy1giyeikgd4jj31fg0e27dj.jpg)
+
+### 8-5. Send message to wise-paas by MQTT
+
+**Open two terminal first.**
+
+    # 1. View the log of the container
+    kubectl logs -f pod/{pod_name} --namespace=level2
+
+![createSecret](https://tva1.sinaimg.cn/large/007S8ZIlgy1giyelqkqtpj312b0u04qp.jpg)
+
+    # 2. Send message to application in WISE-PaaS
     python publisher.py
 
-![Imgur](https://i.imgur.com/9HEJ9OF.png)
+![createSecret](https://tva1.sinaimg.cn/large/007S8ZIlgy1giyenw3zuhj31ds03ggn2.jpg)
 
+### 8-6. Check that postgresql has received data
 
+You can use pgAdmin to check our your insert data，so you need to go to Portal-service or decode data to get your config
 
-**result**
-
-You can use pgAdmin to chech our your insert data，so you need to go to WISE-PaaS to get your config
-
-![Imgur](https://i.imgur.com/RciwrZq.png)
+![copyDataVS](https://tva1.sinaimg.cn/large/007S8ZIlgy1giydu3xomxj30li0e0ad5.jpg)
 
 go to pdAdmin(Servers => create => server)
 
-### connection config
+**Connection config**
 
 ![Imgur](https://i.imgur.com/HEb9o42.png)
 
