@@ -75,7 +75,7 @@ def root():
         return render_template('index.html')
 ```
 
-This is the postgresql connect config code，`ENSAAS_SERVICES` can get the application environment in WISE-PaaS。
+This is the postgresql and MQTT connect config code，`ENSAAS_SERVICES` can get the application environment in WISE-PaaS。
 
 ```py
 
@@ -214,9 +214,9 @@ Edit the **publisher.py** `broker、port、username、password` you can find in 
 
 Each user needs to adjust the variables for certification, as follows：
 
-1. metadata >> name：py-docker-iothub-**{user_name}**
+1. metadata >> name：py-docker-iothub-postgresql-**{user_name}**
 2. student：**{user_name}**
-3. image：**{docker_account}** / py-docker-iothub：latest
+3. image：**{docker_account}** / py-docker-iothub-postgresql：latest
 4. containerPort：listen 3000
 5. env >> valueFrom >> secretRef >> name：need same name in Portal-service **secret name**
 
@@ -229,8 +229,8 @@ Each user needs to adjust the variables for certification, as follows：
 
 Each user needs to adjust the variables for certification, as follows：
 
-1. metadata >> name：py-docker-iothub-**{user_name}**
-2. host：py-docker-iothub-**{user_name}** . **{namespace_name}** . **{cluster_name}**.en.internal
+1. metadata >> name：py-docker-iothub-postgresql-**{user_name}**
+2. host：py-docker-iothub-postgresql-**{user_name}** . **{namespace_name}** . **{cluster_name}**.en.internal
 3. serviceName：need to be same name in Service.yaml **{metadata name}**
 4. servicePort：same **port** in Service.yaml
    ![ingress](https://tva1.sinaimg.cn/large/007S8ZIlgy1giyec4c8e3j30mv0d2417.jpg)
@@ -239,7 +239,7 @@ Each user needs to adjust the variables for certification, as follows：
 
 Each user needs to adjust the variables for certification, as follows：
 
-1. metadata >> name：server-**{user_name}**
+1. metadata >> name：py-docker-iothub-postgresql-**{user_name}**
 2. student：**{user_name}**
 3. port：same **{port}** in ingress.yaml
 4. targetPort：same **{port}** in deployment.yaml **{containerPort}**
